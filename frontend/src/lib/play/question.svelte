@@ -41,26 +41,43 @@ SPDX-License-Identifier: MPL-2.0
 
 	let timer_res = $state(question.time);
 	let selected_answer: string = $state();
+	let question_started_at = $state<string | undefined>(undefined);
 
-	// Stop the timer if the question is answered
-	const timer = (time: string) => {
-		let seconds = Number(time);
+	const computeRemainingSeconds = (): number => {
+		const total = Number(question.time);
+		if (!question_started_at) return total;
+		const started = new Date(question_started_at).getTime();
+		if (Number.isNaN(started)) return total;
+		const elapsed = Math.floor((Date.now() - started) / 1000);
+		return Math.max(0, total - elapsed);
+	};
+
+	const timer = () => {
 		let timer_interval = setInterval(() => {
-			if (timer_res === '0') {
+			const remaining = computeRemainingSeconds();
+			timer_res = remaining.toString();
+			if (remaining <= 0) {
 				clearInterval(timer_interval);
-				return;
-			} else {
-				seconds--;
 			}
-
-			timer_res = seconds.toString();
-		}, 1000);
+		}, 250);
+		return () => clearInterval(timer_interval);
 	};
 	socket.on('everyone_answered', (_) => {
 		timer_res = '0';
 	});
+	// Update start timestamp when server sends it (play page forwards it via question metadata)
+	$effect(() => {
+		// @ts-ignore - some payloads include started_at
+		question_started_at = (question as any).started_at ?? question_started_at;
+	});
 
-	timer(question.time);
+	$effect(() => {
+		selected_answer = undefined;
+		// reset and restart countdown whenever question changes
+		timer_res = computeRemainingSeconds().toString();
+		const stop = timer();
+		return stop;
+	});
 
 	$effect(() => {
 		if (solution !== undefined) {

@@ -119,12 +119,15 @@ async def _attach_player(
         "sid_custom": sid,
         "admin": admin,
         "player_token": player_token,
+        # default until time_sync roundtrip happens
+        "ping": 0,
     }
     await save_session(sid, sio, session)
     await sio.enter_room(sid, game_pin)
 
 
 async def _send_player_state(sid: str, game_data: PlayGame) -> None:
+    session = await get_session(sid, sio, disconnect_on_error=False)
     await sio.emit("joined_game", game_data.to_player_data(), room=sid)
     if game_data.started:
         await sio.emit("start_game", room=sid)
@@ -141,14 +144,23 @@ async def _send_player_state(sid: str, game_data: PlayGame) -> None:
         if game_data.questions[q_i].type == QuizQuestionType.VOTING:
             for i in range(len(temp_return["answers"])):
                 temp_return["answers"][i] = VotingQuizAnswer(**temp_return["answers"][i])
+        if game_data.questions[q_i].type in (QuizQuestionType.ABCD, QuizQuestionType.CHECK):
+            cleaned = []
+            for a in temp_return["answers"]:
+                cleaned.append({"answer": a.get("answer"), "color": a.get("color")})
+            temp_return["answers"] = cleaned
         temp_return["type"] = game_data.questions[q_i].type
         if temp_return["type"] == QuizQuestionType.ORDER:
             random.shuffle(temp_return["answers"])
+        started_at = None
+        if session and session.get("game_pin"):
+            started_at = await redis.get(f"game:{session['game_pin']}:current_time")
         await sio.emit(
             "set_question_number",
             {
                 "question_index": q_i,
-                "question": ReturnQuestion(**temp_return).model_dump(),
+                "question": temp_return,
+                "started_at": started_at,
             },
             room=sid,
         )
@@ -338,6 +350,7 @@ async def set_question_number(sid: str, data: str):
     game_data.question_show = True
     await game_data.save(session["game_pin"])
     await redis.set(f"game:{session['game_pin']}:current_time", datetime.now().isoformat(), ex=7200)
+    started_at = await redis.get(f"game:{session['game_pin']}:current_time")
     temp_return = game_data.model_dump(include={"questions"})["questions"][int(float(data))]
     if game_data.questions[int(float(data))].type == QuizQuestionType.SLIDE:
         await sio.emit(
@@ -366,6 +379,7 @@ async def set_question_number(sid: str, data: str):
         {
             "question_index": int(float(data)),
             "question": temp_return,
+            "started_at": started_at,
         },
         room=game_pin,
     )
@@ -389,9 +403,13 @@ async def submit_answer(sid: str, data: dict):
         await sio.emit("already_replied", room=sid)
         return
     answer_right, answer = check_answer(game_data, data)
-    latency = int(float(session["ping"]))
-    time_q_started = datetime.fromisoformat(await redis.get(f"game:{session['game_pin']}:current_time"))
-    diff = (time_q_started - now).total_seconds() * 1000  # - timedelta(milliseconds=latency)
+    latency = int(float(session.get("ping", 0) or 0))
+    started_raw = await redis.get(f"game:{session['game_pin']}:current_time")
+    if started_raw is None:
+        # Fallback: treat question as starting now if timestamp missing.
+        started_raw = datetime.now().isoformat()
+    time_q_started = datetime.fromisoformat(started_raw)
+    diff = (now - time_q_started).total_seconds() * 1000
     score = 0
     if answer_right:
         score = calculate_score(

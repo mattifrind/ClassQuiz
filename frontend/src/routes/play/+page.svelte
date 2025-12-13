@@ -139,7 +139,7 @@ SPDX-License-Identifier: MPL-2.0
 	socket.on('set_question_number', (data) => {
 		solution = undefined;
 		restart();
-		question = data.question;
+		question = { ...data.question, started_at: data.started_at };
 		question_index = data.question_index;
 		answer_results = undefined;
 	});
