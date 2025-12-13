@@ -133,6 +133,11 @@ SPDX-License-Identifier: MPL-2.0
 		const existing = Cookies.get(PLAYER_COOKIE);
 		const player_token = existing ? JSON.parse(existing).player_token : undefined;
 
+		// Calling Leave closes the socket; ensure we're connected before emitting.
+		if (!socket.connected) {
+			socket.connect();
+		}
+
 		if (captcha_enabled) {
 			if (hcaptchaSitekey) {
 				try {

@@ -489,6 +489,34 @@ async def echo_time_sync(sid: str, data: str):
 
 
 @sio.event
+async def leave_game(sid: str):
+    session: dict = await get_session(sid, sio, disconnect_on_error=False)
+    if not session or not session.get("game_pin") or not session.get("username"):
+        return
+    if session.get("admin"):
+        return
+    game_pin = session["game_pin"]
+    username = session["username"]
+
+    player_sid = await redis.get(f"game_session:{game_pin}:players:{username}")
+    if player_sid:
+        await redis.srem(
+            f"game_session:{game_pin}:players",
+            GamePlayer(username=username, sid=player_sid).model_dump_json(),
+        )
+        await redis.delete(f"game_session:{game_pin}:players:{username}")
+
+    try:
+        await sio.leave_room(sid, game_pin)
+    except Exception:
+        pass
+
+    # Do not call save_session()/sio.get_session() here. If the client
+    # disconnects right after emitting `leave_game`, the Engine.IO session can
+    # already be gone and would raise KeyError('Session not found').
+
+
+@sio.event
 async def kick_player(sid: str, data: dict):
     try:
         data = KickPlayerInput(**data)

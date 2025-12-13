@@ -59,6 +59,29 @@ SPDX-License-Identifier: MPL-2.0
 
 	let preventReload = true;
 
+	function leaveGame() {
+		preventReload = false;
+		Cookies.remove(PLAYER_COOKIE);
+		try {
+			socket.emit('leave_game');
+		} catch {
+			// ignore
+		}
+		try {
+			socket.close();
+		} catch {
+			// ignore
+		}
+		gameData = undefined;
+		gameMeta.started = false;
+		question_index = '';
+		answer_results = undefined;
+		solution = undefined;
+		question = undefined;
+		username = '';
+		game_pin = '';
+	}
+
 	// Functions
 	function restart() {
 		unique = {};
@@ -84,6 +107,10 @@ SPDX-License-Identifier: MPL-2.0
 			return;
 		}
 		const data = JSON.parse(cookie_data);
+		if (!data?.player_token || !data?.game_pin) {
+			Cookies.remove(PLAYER_COOKIE);
+			return;
+		}
 		socket.emit('rejoin_game', {
 			player_token: data.player_token,
 			game_pin: data.game_pin
@@ -188,6 +215,15 @@ SPDX-License-Identifier: MPL-2.0
 	style="background: {bg_color ? bg_color : 'transparent'}"
 	class:text-black={bg_color}
 >
+	{#if gameData !== undefined}
+		<button
+			type="button"
+			onclick={leaveGame}
+			class="fixed top-4 right-4 z-50 rounded-lg bg-white/80 px-3 py-2 text-sm font-semibold text-black shadow-lg backdrop-blur hover:bg-white"
+		>
+			Leave
+		</button>
+	{/if}
 	<div>
 		{#if !gameMeta.started && gameData === undefined}
 			<JoinGame bind:game_pin bind:game_mode bind:username />
