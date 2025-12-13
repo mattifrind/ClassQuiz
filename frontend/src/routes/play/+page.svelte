@@ -18,6 +18,8 @@ SPDX-License-Identifier: MPL-2.0
 	import Cookies from 'js-cookie';
 	const { t } = getLocalization();
 
+	const PLAYER_COOKIE = 'player_identity';
+
 	interface Props {
 		// Exports
 		data: any;
@@ -77,14 +79,13 @@ SPDX-License-Identifier: MPL-2.0
 
 	socket.on('connect', async () => {
 		console.log('Connected!');
-		const cookie_data = Cookies.get('joined_game');
+		const cookie_data = Cookies.get(PLAYER_COOKIE);
 		if (!cookie_data) {
 			return;
 		}
 		const data = JSON.parse(cookie_data);
 		socket.emit('rejoin_game', {
-			old_sid: data.sid,
-			username: data.username,
+			player_token: data.player_token,
 			game_pin: data.game_pin
 		});
 		const res = await fetch(`/api/v1/quiz/play/check_captcha/${game_pin}`);
@@ -95,11 +96,12 @@ SPDX-License-Identifier: MPL-2.0
 	// Socket-events
 	socket.on('joined_game', (data) => {
 		gameData = data;
-		// eslint-disable-next-line no-undef
-		plausible('Joined Game', { props: { game_id: gameData.game_id } });
-		Cookies.set('joined_game', JSON.stringify({ sid: socket.id, username, game_pin }), {
-			expires: 3600
-		});
+		if (typeof (globalThis as any).plausible === 'function') {
+			(globalThis as any).plausible('Joined Game', {
+				props: { game_id: (gameData as any).game_id }
+			});
+		}
+		// Cookie set via `player_identity` event
 	});
 	socket.on('rejoined_game', (data) => {
 		gameData = data;
@@ -109,12 +111,29 @@ SPDX-License-Identifier: MPL-2.0
 	});
 
 	socket.on('game_not_found', () => {
-		const cookie_data = Cookies.get('joined_game');
+		const cookie_data = Cookies.get(PLAYER_COOKIE);
 		if (cookie_data) {
-			Cookies.remove('joined_game');
+			Cookies.remove(PLAYER_COOKIE);
 			window.location.reload();
 			return;
 		}
+	});
+
+	socket.on('player_identity', (data) => {
+		Cookies.set(PLAYER_COOKIE, JSON.stringify(data), { expires: 30 });
+	});
+
+	socket.on('captcha_failed', () => {
+		window.alert('Captcha failed. Please try again.');
+	});
+
+	socket.on('rejoin_failed', () => {
+		Cookies.remove(PLAYER_COOKIE);
+		window.location.reload();
+	});
+
+	socket.on('connect_error', (err) => {
+		console.error('Socket connect_error', err);
 	});
 
 	socket.on('set_question_number', (data) => {
@@ -148,14 +167,14 @@ SPDX-License-Identifier: MPL-2.0
 	});
 	socket.on('final_results', (data) => {
 		final_results = data;
-		Cookies.remove('joined_game');
+		Cookies.remove(PLAYER_COOKIE);
 	});
 
 	socket.on('solutions', (data) => {
 		solution = data;
 	});
 
-	let bg_color = $derived(gameData ? gameData.background_color : undefined);
+	let bg_color = $derived(gameData ? (gameData as any).background_color : undefined);
 
 	// The rest
 </script>

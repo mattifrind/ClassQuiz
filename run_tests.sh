@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: MPL-2.0
 
-CONTAINER_BIN=podman
+CONTAINER_BIN=docker
 
 run_tests() {
   pipenv run coverage run -m pytest -s -v --asyncio-mode=strict classquiz/tests

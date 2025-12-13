@@ -11,12 +11,17 @@ class JoinGameData(BaseModel):
     game_pin: str
     captcha: str | None = None
     custom_field: str | None = None
+    player_token: str | None = None
 
 
 class RejoinGameData(BaseModel):
-    old_sid: str
     game_pin: str
+    player_token: str
+
+
+class PlayerIdentityData(BaseModel):
     username: str
+    player_token: str
 
 
 class RegisterAsAdminData(BaseModel):
@@ -39,7 +44,8 @@ class ReturnQuestion(QuizQuestion):
     type: QuizQuestionType = QuizQuestionType.ABCD
 
     @field_validator("answers")
-    def answers_not_none_if_abcd_type(cls, v, info: ValidationInfo):
+    @classmethod
+    def _validate_answers_shape(cls, v, info: ValidationInfo):
         if info.data["type"] == QuizQuestionType.ABCD and type(v[0]) is not ABCDQuizAnswerWithoutSolution:
             raise ValueError("Answers can't be none if type is ABCD")
         if info.data["type"] == QuizQuestionType.RANGE and type(v) is not RangeQuizAnswerWithoutSolution:

@@ -3,13 +3,16 @@
 // SPDX-License-Identifier: MPL-2.0
 
 {
-    "sqltools.connections": [
-        {
-            "previewLimit": 50,
-            "server": "localhost",
-            "driver": "PostgreSQL",
-            "connectString": "postgresql://postgres:mysecretpassword@localhost:5432/classquiz",
-            "name": "ClassQuiz"
-        }
-    ]
+  "sqltools.connections": [
+    {
+      "previewLimit": 50,
+      "server": "localhost",
+      "driver": "PostgreSQL",
+      "connectString": "postgresql://postgres:mysecretpassword@localhost:5432/classquiz",
+      "name": "ClassQuiz"
+    }
+  ],
+  "python-envs.defaultEnvManager": "ms-python.python:venv",
+  "python-envs.defaultPackageManager": "ms-python.python:pip",
+  "python-envs.pythonProjects": []
 }

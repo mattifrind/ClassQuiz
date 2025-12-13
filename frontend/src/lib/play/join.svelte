@@ -14,6 +14,7 @@ SPDX-License-Identifier: MPL-2.0
 	import BrownButton from '$lib/components/buttons/brown.svelte';
 
 	const { t } = getLocalization();
+	const PLAYER_COOKIE = 'player_identity';
 
 	interface Props {
 		game_pin: string;
@@ -129,6 +130,9 @@ SPDX-License-Identifier: MPL-2.0
 			return;
 		}
 
+		const existing = Cookies.get(PLAYER_COOKIE);
+		const player_token = existing ? JSON.parse(existing).player_token : undefined;
+
 		if (captcha_enabled) {
 			if (hcaptchaSitekey) {
 				try {
@@ -140,7 +144,8 @@ SPDX-License-Identifier: MPL-2.0
 						username: username,
 						game_pin: game_pin,
 						captcha: captcha_resp,
-						custom_field: custom_field ? custom_field_value : undefined
+						custom_field: custom_field ? custom_field_value : undefined,
+						player_token
 					});
 				} catch (e) {
 					if (import.meta.env.VITE_SENTRY !== null) {
@@ -165,7 +170,8 @@ SPDX-License-Identifier: MPL-2.0
 								username: username,
 								game_pin: game_pin,
 								captcha: token,
-								custom_field: custom_field ? custom_field_value : undefined
+								custom_field: custom_field ? custom_field_value : undefined,
+								player_token
 							});
 						});
 				});
@@ -175,10 +181,34 @@ SPDX-License-Identifier: MPL-2.0
 				username: username,
 				game_pin: game_pin,
 				captcha: undefined,
-				custom_field: custom_field ? custom_field_value : undefined
+				custom_field: custom_field ? custom_field_value : undefined,
+				player_token
 			});
 		}
 	};
+
+	socket.on('captcha_failed', () => {
+		if (browser) {
+			alert('Captcha failed. Please try again.');
+		}
+	});
+
+	socket.on('game_already_started', () => {
+		// Late joining is supported; this event is kept for older servers.
+	});
+
+	socket.on('username_already_exists', (data) => {
+		if (data?.player_token) {
+			Cookies.set(PLAYER_COOKIE, JSON.stringify({ ...data, game_pin, username }), {
+				expires: 30
+			});
+			window.location.reload();
+			return;
+		}
+		if (browser) {
+			alert('Username already exists!');
+		}
+	});
 	socket.on('game_not_found', () => {
 		game_pin = '';
 		if (browser) {
