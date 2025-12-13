@@ -351,6 +351,13 @@ async def set_question_number(sid: str, data: str):
     if game_data.questions[int(float(data))].type == QuizQuestionType.VOTING:
         for i in range(len(temp_return["answers"])):
             temp_return["answers"][i] = VotingQuizAnswer(**temp_return["answers"][i])
+    if game_data.questions[int(float(data))].type in (QuizQuestionType.ABCD, QuizQuestionType.CHECK):
+        # Strip solution information before sending to players.
+        # `ReturnQuestion` expects `ABCDQuizAnswerWithoutSolution` entries.
+        cleaned = []
+        for a in temp_return["answers"]:
+            cleaned.append({"answer": a.get("answer"), "color": a.get("color")})
+        temp_return["answers"] = cleaned
     temp_return["type"] = game_data.questions[int(float(data))].type
     if temp_return["type"] == QuizQuestionType.ORDER:
         random.shuffle(temp_return["answers"])
@@ -358,7 +365,7 @@ async def set_question_number(sid: str, data: str):
         "set_question_number",
         {
             "question_index": int(float(data)),
-            "question": ReturnQuestion(**temp_return).model_dump(),
+            "question": temp_return,
         },
         room=game_pin,
     )

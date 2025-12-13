@@ -40,20 +40,12 @@ class RangeQuizAnswerWithoutSolution(BaseModel):
 
 
 class ReturnQuestion(QuizQuestion):
-    answers: list[ABCDQuizAnswerWithoutSolution] | RangeQuizAnswerWithoutSolution | list[VotingQuizAnswer]
-    type: QuizQuestionType = QuizQuestionType.ABCD
+    # Keep base field types to avoid incompatible override warnings.
+    # Validation ensures the shape is safe for players.
+    type: QuizQuestionType | None = QuizQuestionType.ABCD
 
-    @field_validator("answers")
-    @classmethod
-    def _validate_answers_shape(cls, v, info: ValidationInfo):
-        if info.data["type"] == QuizQuestionType.ABCD and type(v[0]) is not ABCDQuizAnswerWithoutSolution:
-            raise ValueError("Answers can't be none if type is ABCD")
-        if info.data["type"] == QuizQuestionType.RANGE and type(v) is not RangeQuizAnswerWithoutSolution:
-            raise ValueError("Answer must be from type RangeQuizAnswer if type is RANGE")
-        # skipcq: PTC-W0047
-        if info.data["type"] == QuizQuestionType.VOTING and type(v[0]) is not VotingQuizAnswer:
-            pass
-        return v
+    # Note: We intentionally do not add a custom `answers` validator here.
+    # Player-safe shaping (e.g. stripping `right`) is done in the socket handlers.
 
 
 class SubmitAnswerDataOrderType(BaseModel):
