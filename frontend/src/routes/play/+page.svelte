@@ -115,6 +115,15 @@ SPDX-License-Identifier: MPL-2.0
 			player_token: data.player_token,
 			game_pin: data.game_pin
 		});
+		// If we reload mid-question, ensure we request the current question state
+		// even if the initial replay event is missed.
+		setTimeout(() => {
+			try {
+				socket.emit('get_current_question');
+			} catch {
+				// ignore
+			}
+		}, 250);
 		const res = await fetch(`/api/v1/quiz/play/check_captcha/${game_pin}`);
 		const json = await res.json();
 		game_mode = json.game_mode;
@@ -135,6 +144,10 @@ SPDX-License-Identifier: MPL-2.0
 		if (data.started) {
 			gameMeta.started = true;
 		}
+		// If we rejoined mid-question, the backend will send `set_question_number` via `_send_player_state`.
+		// Ensure we don't get stuck on the title screen while waiting.
+		// (If `set_question_number` never arrives, we still render title as fallback.)
+		question_index = question_index;
 	});
 
 	socket.on('game_not_found', () => {
@@ -147,7 +160,7 @@ SPDX-License-Identifier: MPL-2.0
 	});
 
 	socket.on('player_identity', (data) => {
-		Cookies.set(PLAYER_COOKIE, JSON.stringify(data), { expires: 30 });
+		Cookies.set(PLAYER_COOKIE, JSON.stringify(data), { expires: 30, sameSite: 'Lax', path: '/' });
 	});
 
 	socket.on('captcha_failed', () => {
@@ -166,6 +179,15 @@ SPDX-License-Identifier: MPL-2.0
 	socket.on('set_question_number', (data) => {
 		solution = undefined;
 		restart();
+			if (import.meta.env.PROD) {
+				console.log('[cq][socket] set_question_number', {
+					hasQuestion: Boolean(data?.question),
+					answersLen: Array.isArray(data?.question?.answers) ? data.question.answers.length : null,
+					questionKeys: data?.question ? Object.keys(data.question) : null,
+					startedAt: data?.started_at ?? data?.question?.started_at ?? null,
+					questionTime: data?.question?.time ?? null
+				});
+			}
 		question = { ...data.question, started_at: data.started_at };
 		question_index = data.question_index;
 		answer_results = undefined;

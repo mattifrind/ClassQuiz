@@ -14,8 +14,10 @@ async def get_session(sid: str, sio: AsyncServer, disconnect_on_error: bool = Tr
     if session_id is None:
         raise ConnectionRefusedError("Session not configured")
     val = await redis.get(f"socket_io_session:{session_id}")
-    if disconnect_on_error and val is None:
-        raise ConnectionRefusedError("session not available")
+    if val is None:
+        if disconnect_on_error:
+            raise ConnectionRefusedError("session not available")
+        return {}
     return json.loads(val)
 
 

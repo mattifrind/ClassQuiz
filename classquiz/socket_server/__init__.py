@@ -131,6 +131,7 @@ async def _send_player_state(sid: str, game_data: PlayGame) -> None:
     await sio.emit("joined_game", game_data.to_player_data(), room=sid)
     if game_data.started:
         await sio.emit("start_game", room=sid)
+    # If we are currently showing a question, re-send it to joining/rejoining players.
     if game_data.question_show:
         q_i = int(float(game_data.current_question))
         if game_data.questions[q_i].type == QuizQuestionType.SLIDE:
@@ -164,6 +165,23 @@ async def _send_player_state(sid: str, game_data: PlayGame) -> None:
             },
             room=sid,
         )
+
+
+@sio.event
+async def get_current_question(sid: str):
+    """Player helper: request current question state after reload.
+
+    Some proxies/browsers can reorder initial events on reconnect; this gives the
+    client an explicit way to re-request the current question.
+    """
+    session = await get_session(sid, sio, disconnect_on_error=False)
+    if not session or session.get("admin"):
+        return
+    game_pin = session.get("game_pin")
+    if not game_pin:
+        return
+    game_data = await PlayGame.get_from_redis(game_pin)
+    await _send_player_state(sid, game_data)
 
 
 @sio.event
@@ -361,6 +379,14 @@ async def set_question_number(sid: str, data: str):
             room=sid,
         )
         return
+
+    try:
+        answers_len = len(temp_return.get("answers") or [])
+    except Exception:
+        answers_len = -1
+    print(
+        f"[socketio] set_question_number pin={session['game_pin']} q={int(float(data))} type={game_data.questions[int(float(data))].type} answers_len={answers_len}"
+    )
     if game_data.questions[int(float(data))].type == QuizQuestionType.VOTING:
         for i in range(len(temp_return["answers"])):
             temp_return["answers"][i] = VotingQuizAnswer(**temp_return["answers"][i])
@@ -483,9 +509,11 @@ async def echo_time_sync(sid: str, data: str):
     then = datetime.fromisoformat(then_dec)
     now = datetime.now()
     delta = now - then
-    session = await get_session(sid, sio)
+    session = await get_session(sid, sio, disconnect_on_error=False)
+    if not session:
+        return
     session["ping"] = delta.microseconds / 1000
-    await save_session(sid, sio, session)
+    await save_session(sid, sio, session, disconnect_on_error=False)
 
 
 @sio.event

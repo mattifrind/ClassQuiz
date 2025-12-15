@@ -205,7 +205,9 @@ SPDX-License-Identifier: MPL-2.0
 	socket.on('username_already_exists', (data) => {
 		if (data?.player_token) {
 			Cookies.set(PLAYER_COOKIE, JSON.stringify({ ...data, game_pin, username }), {
-				expires: 30
+				expires: 30,
+				sameSite: 'Lax',
+				path: '/'
 			});
 			window.location.reload();
 			return;

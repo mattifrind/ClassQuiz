@@ -25,13 +25,12 @@ services:
       - db
       - redis
 
-    environment: &env_vars
-      # --- DON'T CHANGE FROM HERE ---
+    environment: &env_vars # --- DON'T CHANGE FROM HERE ---
       DB_URL: "postgresql://postgres:classquiz@db:5432/classquiz" # DON'T CHANGE
       REDIS: "redis://redis:6379/0?decode_responses=True" # DON'T CHANGE
-      SECRET_KEY: "TOP_SECRET" # Don't change it manually, use the one-liner provided in the documentation
+      SECRET_KEY: "287f6f922b08daa498d309e3a705ccd26e924da8c6c7dfad3dc7101b7cb227a9" # Don't change it manually, use the one-liner provided in the documentation
       MAX_WORKERS: "1" # Very important and DON'T CHANGE
-      ACCESS_TOKEN_EXPIRE_MINUTES: 30  # DON'T CHANGE
+      ACCESS_TOKEN_EXPIRE_MINUTES: 30 # DON'T CHANGE
       MEILISEARCH_URL: "http://meilisearch:7700" # DON'T CHANGE
       # -- DON'T CHANGE TILL HERE ---
 
@@ -79,13 +78,13 @@ services:
     image: redis:alpine
     restart: always
     healthcheck:
-      test: [ "CMD", "redis-cli","ping" ]
+      test: ["CMD", "redis-cli", "ping"]
 
   db:
     image: postgres:14-alpine
     restart: always
     healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U postgres" ]
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -114,7 +113,6 @@ services:
     depends_on: *depends
     restart: *restart
     command: arq classquiz.worker.WorkerSettings
-
 
 volumes:
   data:

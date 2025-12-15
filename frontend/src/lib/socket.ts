@@ -4,19 +4,21 @@
 
 import { io } from 'socket.io-client';
 
-// Ensure we always have a valid base URL.
-// Default to current origin (works behind Caddy during dev/prod).
-const baseUrl =
-	(typeof window !== 'undefined' && window.location?.origin ? window.location.origin : undefined) ??
-	undefined;
+// IMPORTANT:
+// - In the browser, connect to the current origin (Caddy will proxy /socket.io).
+// - During SvelteKit SSR, do NOT create a real socket client; it can end up with
+//   ws://undefined/... and interfere with runtime state.
+
+const isBrowser = typeof window !== 'undefined';
+const baseUrl = isBrowser && window.location?.origin ? window.location.origin : undefined;
 
 export const socket = io(baseUrl, {
-	autoConnect: true,
+	autoConnect: isBrowser,
+	path: '/socket.io',
 	transports: ['websocket', 'polling']
 });
 
 export function ensureSocketConnected() {
-	if (!socket.connected) {
-		socket.connect();
-	}
+	if (!isBrowser) return;
+	if (!socket.connected) socket.connect();
 }

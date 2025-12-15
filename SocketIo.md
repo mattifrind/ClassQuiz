@@ -6,6 +6,16 @@ SPDX-License-Identifier: MPL-2.0
 
 # Socket.IO-Client-Docs
 
+## Debugging Docker / Caddy routing
+
+The Socket.IO endpoint must be reachable through the proxy. You can quickly probe the Engine.IO polling endpoint via Caddy:
+
+```sh
+curl -sS -D - 'http://localhost:8000/socket.io/?EIO=4&transport=polling&t=probe' | head -n 30
+```
+
+You should see a `200` and a body starting with something like `0{...}`.
+
 ## Main structure
 
 ### Admin

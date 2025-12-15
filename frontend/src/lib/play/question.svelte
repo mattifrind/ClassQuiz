@@ -43,12 +43,22 @@ SPDX-License-Identifier: MPL-2.0
 	let selected_answer: string = $state();
 	let question_started_at = $state<string | undefined>(undefined);
 
+	const parseServerTimestampMs = (stamp: string | undefined): number | undefined => {
+		if (!stamp) return undefined;
+		// Backend sends naive ISO like "2025-12-15T12:06:10.860197" (no timezone).
+		// Some runtimes treat this as local time, others/older Safari can fail parsing.
+		// Treat naive timestamps as UTC to keep timer consistent.
+		const normalized = stamp.includes('Z') || /[+-]\d\d:?\d\d$/.test(stamp) ? stamp : `${stamp}Z`;
+		const ms = Date.parse(normalized);
+		return Number.isNaN(ms) ? undefined : ms;
+	};
+
 	const computeRemainingSeconds = (): number => {
 		const total = Number(question.time);
-		if (!question_started_at) return total;
-		const started = new Date(question_started_at).getTime();
-		if (Number.isNaN(started)) return total;
-		const elapsed = Math.floor((Date.now() - started) / 1000);
+		if (!Number.isFinite(total)) return 0;
+		const startedMs = parseServerTimestampMs(question_started_at);
+		if (!startedMs) return total;
+		const elapsed = Math.floor((Date.now() - startedMs) / 1000);
 		return Math.max(0, total - elapsed);
 	};
 
@@ -158,9 +168,19 @@ SPDX-License-Identifier: MPL-2.0
 		}
 	};
 	const default_colors = ['#D6EDC9', '#B07156', '#7F7057', '#4E6E58'];
+
+	// Prod-only debug overlay: helps diagnose Docker-only rendering issues.
+	const __dbg = import.meta.env.PROD;
 </script>
 
 <div class="h-screen w-screen">
+	{#if __dbg}
+		<div class="fixed bottom-2 left-2 z-[9999] rounded bg-black/80 px-2 py-1 text-[11px] text-white">
+			<div>type: {String(question?.type)}</div>
+			<div>timer: {String(timer_res)}</div>
+			<div>answers: {Array.isArray(question?.answers) ? question.answers.length : 'not-array'}</div>
+		</div>
+	{/if}
 	{#if game_mode === 'normal'}
 		<div
 			class="flex flex-col justify-start"
@@ -182,7 +202,7 @@ SPDX-License-Identifier: MPL-2.0
 			{/if}
 		</div>
 	{/if}
-	{#if timer_res !== '0'}
+	{#if timer_res !== '0' || selected_answer !== undefined}
 		{#if question.type === QuizQuestionType.ABCD || question.type === QuizQuestionType.VOTING}
 			<div class="w-full relative h-full" style="height: {get_div_height()}%">
 				<div
