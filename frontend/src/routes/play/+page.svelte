@@ -96,134 +96,150 @@ SPDX-License-Identifier: MPL-2.0
 		}
 	};
 
-	socket.on('time_sync', (data) => {
-		socket.emit('echo_time_sync', data);
-	});
+	// Ensure socket listeners are registered exactly once even if the page component
+	// is created multiple times during navigation/hot reload.
+	let __socketHandlersRegistered = false;
+	const registerSocketHandlers = () => {
+		if (__socketHandlersRegistered) return;
+		__socketHandlersRegistered = true;
 
-	socket.on('connect', async () => {
-		console.log('Connected!');
-		const cookie_data = Cookies.get(PLAYER_COOKIE);
-		if (!cookie_data) {
-			return;
-		}
-		const data = JSON.parse(cookie_data);
-		if (!data?.player_token || !data?.game_pin) {
-			Cookies.remove(PLAYER_COOKIE);
-			return;
-		}
-		socket.emit('rejoin_game', {
-			player_token: data.player_token,
-			game_pin: data.game_pin
+		socket.on('time_sync', (data) => {
+			socket.emit('echo_time_sync', data);
 		});
-		// If we reload mid-question, ensure we request the current question state
-		// even if the initial replay event is missed.
-		setTimeout(() => {
+
+		socket.on('connect', async () => {
+			console.log('Connected!');
+			// Default to normal until server tells us otherwise.
+			if (game_mode === undefined) {
+				game_mode = 'normal';
+			}
+			const cookie_data = Cookies.get(PLAYER_COOKIE);
+			if (cookie_data) {
+				try {
+					const parsed = JSON.parse(cookie_data);
+					if (parsed?.player_token && parsed?.game_pin) {
+						socket.emit('rejoin_game', {
+							player_token: parsed.player_token,
+							game_pin: parsed.game_pin
+						});
+						// Ask explicitly for current state after reconnect/rejoin.
+						setTimeout(() => {
+							try {
+								socket.emit('get_current_question');
+							} catch {
+								// ignore
+							}
+						}, 250);
+					} else {
+						Cookies.remove(PLAYER_COOKIE);
+					}
+				} catch {
+					Cookies.remove(PLAYER_COOKIE);
+				}
+			}
+
+			// game_mode may be needed for rendering; best-effort refresh
 			try {
-				socket.emit('get_current_question');
+				const res = await fetch(`/api/v1/quiz/play/check_captcha/${game_pin}`);
+				const json = await res.json();
+				game_mode = json.game_mode;
 			} catch {
 				// ignore
 			}
-		}, 250);
-		const res = await fetch(`/api/v1/quiz/play/check_captcha/${game_pin}`);
-		const json = await res.json();
-		game_mode = json.game_mode;
-	});
+		});
 
-	// Socket-events
-	socket.on('joined_game', (data) => {
-		gameData = data;
-		if (typeof (globalThis as any).plausible === 'function') {
-			(globalThis as any).plausible('Joined Game', {
-				props: { game_id: (gameData as any).game_id }
-			});
-		}
-		// Cookie set via `player_identity` event
-	});
-	socket.on('rejoined_game', (data) => {
-		gameData = data;
-		if (data.started) {
-			gameMeta.started = true;
-		}
-		// If we rejoined mid-question, the backend will send `set_question_number` via `_send_player_state`.
-		// Ensure we don't get stuck on the title screen while waiting.
-		// (If `set_question_number` never arrives, we still render title as fallback.)
-		question_index = question_index;
-	});
-
-	socket.on('game_not_found', () => {
-		const cookie_data = Cookies.get(PLAYER_COOKIE);
-		if (cookie_data) {
-			Cookies.remove(PLAYER_COOKIE);
-			window.location.reload();
-			return;
-		}
-	});
-
-	socket.on('player_identity', (data) => {
-		Cookies.set(PLAYER_COOKIE, JSON.stringify(data), { expires: 30, sameSite: 'Lax', path: '/' });
-	});
-
-	socket.on('captcha_failed', () => {
-		window.alert('Captcha failed. Please try again.');
-	});
-
-	socket.on('rejoin_failed', () => {
-		Cookies.remove(PLAYER_COOKIE);
-		window.location.reload();
-	});
-
-	socket.on('connect_error', (err) => {
-		console.error('Socket connect_error', err);
-	});
-
-	socket.on('set_question_number', (data) => {
-		solution = undefined;
-		restart();
-			if (import.meta.env.PROD) {
-				console.log('[cq][socket] set_question_number', {
-					hasQuestion: Boolean(data?.question),
-					answersLen: Array.isArray(data?.question?.answers) ? data.question.answers.length : null,
-					questionKeys: data?.question ? Object.keys(data.question) : null,
-					startedAt: data?.started_at ?? data?.question?.started_at ?? null,
-					questionTime: data?.question?.time ?? null
+		// Socket-events
+		socket.on('joined_game', (data) => {
+			gameData = data;
+			if (typeof (globalThis as any).plausible === 'function') {
+				(globalThis as any).plausible('Joined Game', {
+					props: { game_id: (gameData as any).game_id }
 				});
 			}
-		question = { ...data.question, started_at: data.started_at };
-		question_index = data.question_index;
-		answer_results = undefined;
-	});
+			// Cookie set via `player_identity` event
+		});
+		socket.on('rejoined_game', (data) => {
+			gameData = data;
+			if (data.started) {
+				gameMeta.started = true;
+			}
+			// Force Svelte to consider question screen on active games.
+			question_index = question_index;
+		});
 
-	socket.on('start_game', () => {
-		gameMeta.started = true;
-	});
+		socket.on('game_not_found', () => {
+			const cookie_data = Cookies.get(PLAYER_COOKIE);
+			if (cookie_data) {
+				Cookies.remove(PLAYER_COOKIE);
+				window.location.reload();
+				return;
+			}
+		});
 
-	socket.on('question_results', (data) => {
-		restart();
-		answer_results = data;
-	});
+		socket.on('player_identity', (data) => {
+			Cookies.set(PLAYER_COOKIE, JSON.stringify(data), {
+				expires: 30,
+				sameSite: 'Lax',
+				path: '/'
+			});
+		});
 
-	socket.on('username_already_exists', () => {
-		window.alert('Username already exists!');
-	});
+		socket.on('captcha_failed', () => {
+			window.alert('Captcha failed. Please try again.');
+		});
 
-	socket.on('kick', () => {
-		window.alert('You got kicked');
-		preventReload = false;
-		game_pin = '';
-		username = '';
-		Cookies.set('kicked', 'value', { expires: 1 });
-		window.location.reload();
-	});
-	socket.on('final_results', (data) => {
-		final_results = data;
-		Cookies.remove(PLAYER_COOKIE);
-	});
+		socket.on('rejoin_failed', () => {
+			Cookies.remove(PLAYER_COOKIE);
+			window.location.reload();
+		});
 
-	socket.on('solutions', (data) => {
-		solution = data;
-	});
+		socket.on('connect_error', (err) => {
+			console.error('Socket connect_error', err);
+		});
+
+		socket.on('set_question_number', (data) => {
+			solution = undefined;
+			restart();
+			gameMeta.started = true;
+			question = { ...data.question, started_at: data.started_at };
+			question_index = data.question_index;
+			answer_results = undefined;
+		});
+
+		socket.on('start_game', () => {
+			gameMeta.started = true;
+		});
+
+		socket.on('question_results', (data) => {
+			restart();
+			answer_results = data;
+		});
+
+		socket.on('username_already_exists', () => {
+			window.alert('Username already exists!');
+		});
+
+		socket.on('kick', () => {
+			window.alert('You got kicked');
+			preventReload = false;
+			game_pin = '';
+			username = '';
+			Cookies.set('kicked', 'value', { expires: 1 });
+			window.location.reload();
+		});
+		socket.on('final_results', (data) => {
+			final_results = data;
+			Cookies.remove(PLAYER_COOKIE);
+		});
+
+		socket.on('solutions', (data) => {
+			solution = data;
+		});
+	};
 
 	let bg_color = $derived(gameData ? (gameData as any).background_color : undefined);
+
+	registerSocketHandlers();
 
 	// The rest
 </script>

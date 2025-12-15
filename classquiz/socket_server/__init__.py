@@ -384,9 +384,7 @@ async def set_question_number(sid: str, data: str):
         answers_len = len(temp_return.get("answers") or [])
     except Exception:
         answers_len = -1
-    print(
-        f"[socketio] set_question_number pin={session['game_pin']} q={int(float(data))} type={game_data.questions[int(float(data))].type} answers_len={answers_len}"
-    )
+    # (debug print removed)
     if game_data.questions[int(float(data))].type == QuizQuestionType.VOTING:
         for i in range(len(temp_return["answers"])):
             temp_return["answers"][i] = VotingQuizAnswer(**temp_return["answers"][i])

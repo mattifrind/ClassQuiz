@@ -39,6 +39,20 @@ SPDX-License-Identifier: MPL-2.0
 		question.type = QuizQuestionType[question.type];
 	}
 
+	// If `question.question` is empty while answers are present (seen after reload),
+	// fall back to a plain-text render to avoid @{html} edge cases.
+	const safeQuestionHtml = () => {
+		const raw = (question as any)?.question;
+		if (typeof raw !== 'string') return '';
+		return raw;
+	};
+	const safeQuestionText = () => {
+		const raw = (question as any)?.question;
+		if (typeof raw !== 'string') return '';
+		// Remove any HTML tags to ensure something visible renders.
+		return raw.replace(/<[^>]*>/g, '').trim();
+	};
+
 	let timer_res = $state(question.time);
 	let selected_answer: string = $state();
 	let question_started_at = $state<string | undefined>(undefined);
@@ -48,7 +62,8 @@ SPDX-License-Identifier: MPL-2.0
 		// Backend sends naive ISO like "2025-12-15T12:06:10.860197" (no timezone).
 		// Some runtimes treat this as local time, others/older Safari can fail parsing.
 		// Treat naive timestamps as UTC to keep timer consistent.
-		const normalized = stamp.includes('Z') || /[+-]\d\d:?\d\d$/.test(stamp) ? stamp : `${stamp}Z`;
+		const normalized =
+			stamp.includes('Z') || /[+-]\d\d:?\d\d$/.test(stamp) ? stamp : `${stamp}Z`;
 		const ms = Date.parse(normalized);
 		return Number.isNaN(ms) ? undefined : ms;
 	};
@@ -168,20 +183,10 @@ SPDX-License-Identifier: MPL-2.0
 		}
 	};
 	const default_colors = ['#D6EDC9', '#B07156', '#7F7057', '#4E6E58'];
-
-	// Prod-only debug overlay: helps diagnose Docker-only rendering issues.
-	const __dbg = import.meta.env.PROD;
 </script>
 
 <div class="h-screen w-screen">
-	{#if __dbg}
-		<div class="fixed bottom-2 left-2 z-[9999] rounded bg-black/80 px-2 py-1 text-[11px] text-white">
-			<div>type: {String(question?.type)}</div>
-			<div>timer: {String(timer_res)}</div>
-			<div>answers: {Array.isArray(question?.answers) ? question.answers.length : 'not-array'}</div>
-		</div>
-	{/if}
-	{#if game_mode === 'normal'}
+	{#if game_mode !== 'kahoot'}
 		<div
 			class="flex flex-col justify-start"
 			class:mt-10={[QuizQuestionType.RANGE, QuizQuestionType.ORDER, QuizQuestionType.TEXT]}
@@ -190,7 +195,13 @@ SPDX-License-Identifier: MPL-2.0
 			<h1
 				class="lg:text-2xl text-lg text-center text-black dark:text-white mt-2 break-normal mb-2"
 			>
-				{@html question.question}
+				{#if safeQuestionHtml().trim().length > 0}
+					<!-- Prefer HTML, but ensure we always show some visible text as fallback. -->
+					{@html safeQuestionHtml()}
+					<p class="mt-1 text-sm opacity-0 select-none">{safeQuestionText()}</p>
+				{:else}
+					<span class="opacity-70">(missing question text)</span>
+				{/if}
 			</h1>
 			{#if question.image !== null && game_mode !== 'kahoot'}
 				<div class="max-h-full">
