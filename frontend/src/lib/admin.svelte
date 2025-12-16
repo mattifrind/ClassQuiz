@@ -16,7 +16,7 @@ SPDX-License-Identifier: MPL-2.0
 	import Question from '$lib/play/admin/question.svelte';
 
 	const { t } = getLocalization();
-	const default_colors = ['#D6EDC9', '#B07156', '#7F7057', '#4E6E58'];
+	const default_colors = ['#5B0A15', '#0A3A2A', '#2A123B', '#3B2C00'];
 
 	let question_results = $state(null);
 	let selected_question = $state(-1);

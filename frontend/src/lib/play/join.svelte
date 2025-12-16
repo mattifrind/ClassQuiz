@@ -265,7 +265,7 @@ SPDX-License-Identifier: MPL-2.0
 		<form onsubmit={setUsername} class="flex-col flex justify-center align-center mx-auto">
 			<h1 class="text-lg text-center">{$t('words.username')}</h1>
 			<input
-				class="border border-gray-400 self-center text-center text-black ring-0 outline-hidden p-2 rounded-lg focus:shadow-2xl transition-all"
+				class="border border-gray-400 self-center text-center ring-0 outline-hidden p-2 rounded-lg focus:shadow-2xl transition-all"
 				bind:value={username}
 				maxlength="17"
 			/>

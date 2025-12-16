@@ -182,7 +182,60 @@ SPDX-License-Identifier: MPL-2.0
 			return '100';
 		}
 	};
-	const default_colors = ['#D6EDC9', '#B07156', '#7F7057', '#4E6E58'];
+	const default_colors = ['#5B0A15', '#0A3A2A', '#2A123B', '#3B2C00'];
+
+	// Auto-resize functionality for ABCD answers
+	let answer_buttons: HTMLButtonElement[] = [];
+	let answer_font_sizes: string[] = $state([]);
+
+	const computeFontSize = (button: HTMLButtonElement, text: string): string => {
+		if (!button) return '16px';
+
+		const buttonWidth = button.clientWidth - 24; // subtract padding (p-3 = 12px * 2)
+		const buttonHeight = button.clientHeight - 24;
+
+		if (buttonWidth <= 0 || buttonHeight <= 0) return '16px';
+
+		// Estimate based on text length and available space
+		const charCount = text.length;
+		const avgCharWidth = 0.6; // approximate ratio of font-size to character width
+
+		// Calculate font size based on width constraint
+		const maxFontByWidth = Math.floor(buttonWidth / (charCount * avgCharWidth));
+		// Calculate font size based on height constraint (allow some wrapping)
+		const maxFontByHeight = Math.floor(buttonHeight / 1.5);
+
+		// Use the smaller of the two constraints, with min/max bounds
+		const fontSize = Math.max(12, Math.min(48, Math.min(maxFontByWidth, maxFontByHeight)));
+
+		return `${fontSize}px`;
+	};
+
+	const updateAnswerFontSizes = () => {
+		if (question.type !== QuizQuestionType.ABCD && question.type !== QuizQuestionType.VOTING) {
+			return;
+		}
+
+		answer_font_sizes = answer_buttons.map((btn, i) => {
+			if (!btn) return '16px';
+			return computeFontSize(btn, question.answers[i]?.answer || '');
+		});
+	};
+
+	// Update font sizes when buttons are mounted or window resizes
+	$effect(() => {
+		if (answer_buttons.length > 0) {
+			// Small delay to ensure layout is complete
+			setTimeout(updateAnswerFontSizes, 50);
+		}
+	});
+
+	// Re-calculate on window resize
+	$effect(() => {
+		const handleResize = () => updateAnswerFontSizes();
+		window.addEventListener('resize', handleResize);
+		return () => window.removeEventListener('resize', handleResize);
+	});
 </script>
 
 <div class="h-screen w-screen">
@@ -192,9 +245,7 @@ SPDX-License-Identifier: MPL-2.0
 			class:mt-10={[QuizQuestionType.RANGE, QuizQuestionType.ORDER, QuizQuestionType.TEXT]}
 			style="height: {question.image ? '33.333333' : '16.666667'}%"
 		>
-			<h1
-				class="lg:text-2xl text-lg text-center text-black dark:text-white mt-2 break-normal mb-2"
-			>
+			<h1 class="lg:text-2xl text-lg text-center text-white mt-2 break-normal mb-2">
 				{#if safeQuestionHtml().trim().length > 0}
 					<!-- Prefer HTML, but ensure we always show some visible text as fallback. -->
 					{@html safeQuestionHtml()}
@@ -225,6 +276,7 @@ SPDX-License-Identifier: MPL-2.0
 				<div class="grid grid-rows-2 grid-flow-col auto-cols-auto gap-2 w-full p-4 h-full">
 					{#each question.answers as answer, i}
 						<button
+							bind:this={answer_buttons[i]}
 							class="rounded-lg h-full flex align-middle justify-center disabled:opacity-60 p-3 border-2 border-black"
 							style="background-color: {answer.color ??
 								default_colors[i]}; color: {get_foreground_color(
@@ -240,7 +292,13 @@ SPDX-License-Identifier: MPL-2.0
 									src={kahoot_icons[i]}
 								/>
 							{:else}
-								<p class="m-auto">{answer.answer}</p>
+								<p
+									class="m-auto"
+									style="font-size: {answer_font_sizes[i] ||
+										'16px'}; line-height: 1.2; word-break: break-word;"
+								>
+									{answer.answer}
+								</p>
 							{/if}
 						</button>
 					{/each}

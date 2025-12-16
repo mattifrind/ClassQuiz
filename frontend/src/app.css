@@ -20,7 +20,7 @@ SPDX-License-Identifier: MPL-2.0
 }
 
 .link-hover:hover {
-	color: #4e6e58;
+	color: #214e6a;
 }
 @layer base {
 	button:not(:disabled),

@@ -17,7 +17,7 @@ SPDX-License-Identifier: MPL-2.0
 
 	const { t } = getLocalization();
 
-	const default_colors = ['#D6EDC9', '#B07156', '#7F7057', '#4E6E58'];
+	const default_colors = ['#5B0A15', '#0A3A2A', '#2A123B', '#3B2C00'];
 
 	interface Props {
 		selected_question: number;

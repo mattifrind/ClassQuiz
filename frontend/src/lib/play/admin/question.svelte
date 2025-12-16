@@ -79,12 +79,6 @@ SPDX-License-Identifier: MPL-2.0
 					timer_res === '0' &&
 					quiz_data.questions[selected_question].type === QuizQuestionType.ABCD}
 			>
-				<img
-					class="w-14 inline-block pl-4"
-					alt="icon"
-					style="color: {get_foreground_color(answer.color ?? default_colors[i])}"
-					src={kahoot_icons[i]}
-				/>
 				<span
 					class="text-center text-2xl px-2 py-4 w-full"
 					style="color: {get_foreground_color(answer.color ?? default_colors[i])}"

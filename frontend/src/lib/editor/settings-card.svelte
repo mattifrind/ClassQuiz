@@ -142,7 +142,7 @@ SPDX-License-Identifier: MPL-2.0
 							class="bg-gray-200 rounded-lg w-full h-full p-1"
 							class:pointer-events-none={custom_bg_color}
 						>
-							<span class="inline-block w-full h-full bg-[#d6edc9] dark:bg-[#4e6e58]"
+							<span class="inline-block w-full h-full bg-[#d6edc9] dark:bg-[#214e6a]"
 							></span>
 						</div>
 					</div>
